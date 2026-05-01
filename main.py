@@ -3,23 +3,23 @@
 """PONG — Arcade Reborn  |  main entry point & game-state machine."""
 
 import sys, os
-# headless display so it runs without a physical screen (CI / server)
-
 
 import pygame
 from settings import *
+from settings_manager import cfg
 from assets.sounds.generate import sounds
-from screens.menu       import MenuScreen
-from screens.game       import GameScreen
-from screens.scoreboard import ScoreboardScreen, save_score, load_scores
-from screens.gameover   import GameOverScreen
+from screens.menu            import MenuScreen
+from screens.game            import GameScreen
+from screens.scoreboard      import ScoreboardScreen, save_score, load_scores
+from screens.gameover        import GameOverScreen
+from screens.settings_screen import SettingsScreen
 
 
 def main():
     pygame.init()
     pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=512)
 
-    screen = pygame.display.set_mode((WIDTH, HEIGHT))
+    screen = pygame.display.set_mode(cfg.get_resolution())
     pygame.display.set_caption(TITLE)
     clock  = pygame.time.Clock()
 
@@ -27,12 +27,13 @@ def main():
     sounds.init()
 
     # build all screens
-    menu_screen  = MenuScreen(screen)
-    game_screen  = GameScreen(screen)
-    sb_screen    = ScoreboardScreen(screen)
-    go_screen    = GameOverScreen(screen)
+    menu_screen     = MenuScreen(screen)
+    game_screen     = GameScreen(screen)
+    sb_screen       = ScoreboardScreen(screen)
+    go_screen       = GameOverScreen(screen)
+    settings_screen = SettingsScreen(screen)
 
-    state        = "MENU"   # MENU | GAME | SCOREBOARD | GAME_OVER | QUIT
+    state        = "MENU"   # MENU | GAME | SCOREBOARD | GAME_OVER | SETTINGS | QUIT
     pending_rank = -1
 
     while state != "QUIT":
@@ -49,11 +50,21 @@ def main():
                 if action == "START GAME":
                     game_screen.reset_full()
                     state = "GAME"
+                elif action == "SETTINGS":
+                    state = "SETTINGS"
                 elif action == "SCOREBOARD":
                     sb_screen.refresh()
                     state = "SCOREBOARD"
                 elif action == "EXIT":
                     state = "QUIT"
+
+            elif state == "SETTINGS":
+                action = settings_screen.handle_event(event)
+                if action == "MENU":
+                    if cfg.pending_resize:
+                        screen = pygame.display.set_mode(cfg.get_resolution())
+                        cfg.pending_resize = False
+                    state = "MENU"
 
             elif state == "GAME":
                 action = game_screen.handle_event(event)
@@ -98,6 +109,9 @@ def main():
             scores  = load_scores()
             best_hs = scores[0]["points"] if scores else 0
             menu_screen.draw(highscore=best_hs)
+
+        elif state == "SETTINGS":
+            settings_screen.draw()
 
         elif state == "GAME":
             game_screen.draw()
